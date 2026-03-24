@@ -465,6 +465,9 @@ let capturedDataUrl = null;
 let camStream = null;
 let facingMode = 'environment';
 
+// Référence sécurisée à l'API TTS (absente sur certains navigateurs Android)
+const SS = (typeof speechSynthesis !== 'undefined') ? speechSynthesis : null;
+
 // ════════════════════════════════════════════
 //  VIEW MANAGEMENT
 // ════════════════════════════════════════════
@@ -600,16 +603,20 @@ async function startOCR() {
   const lang = document.getElementById('lang-sel').value;
   setProgress(0, 'Chargement du moteur OCR…', '');
 
+  let ocrData = null;
   try {
     const { data } = await Tesseract.recognize(capturedDataUrl, lang, {
       logger: onOCRProgress
     });
-    buildReading(data);
+    ocrData = data;
   } catch (err) {
     console.error(err);
-    alert('Erreur lors de l\'analyse : ' + (err.message || err));
+    alert('Erreur OCR : ' + (err.message || err));
     showView('preview');
+    return;
   }
+  // buildReading séparé du try/catch OCR pour ne pas confondre les erreurs
+  buildReading(ocrData);
 }
 
 function onOCRProgress(m) {
@@ -826,6 +833,12 @@ const Reader = (() => {
     _scroll(idx);
     _updateUI();
 
+    // Si TTS indisponible : avancer bloc par bloc visuellement sans audio
+    if (!SS) {
+      setTimeout(() => { if (_playing) _play(idx + 1); }, 1800);
+      return;
+    }
+
     const text = _blocks[idx].text;
     const utt = new SpeechSynthesisUtterance(text);
     utt.rate = _rate;
@@ -843,34 +856,34 @@ const Reader = (() => {
       if (e.error !== 'interrupted' && e.error !== 'canceled') console.warn('TTS:', e.error);
     };
 
-    speechSynthesis.cancel();
+    SS?.cancel();
     // Small delay to avoid Chrome TTS bug
-    setTimeout(() => { if (_playing) speechSynthesis.speak(utt); }, 80);
+    setTimeout(() => { if (_playing) SS?.speak(utt); }, 80);
   }
 
   function _pause() {
-    speechSynthesis.pause();
+    SS?.pause();
     _playing = false; _paused = true;
     _hlBlock(_cur, false);
     _updateUI();
   }
 
   function _resume() {
-    speechSynthesis.resume();
+    SS?.resume();
     _playing = true; _paused = false;
     _hlBlock(_cur, true);
     _updateUI();
   }
 
   function stop() {
-    speechSynthesis.cancel();
+    SS?.cancel();
     _playing = false; _paused = false;
     _clearHL();
     _updateUI();
   }
 
   function next() {
-    speechSynthesis.cancel();
+    SS?.cancel();
     _paused = false;
     if (_cur < _blocks.length - 1) _cur++;
     _clearHL();
@@ -879,7 +892,7 @@ const Reader = (() => {
   }
 
   function prev() {
-    speechSynthesis.cancel();
+    SS?.cancel();
     _paused = false;
     if (_cur > 0) _cur--;
     _clearHL();
@@ -888,7 +901,7 @@ const Reader = (() => {
   }
 
   function jumpTo(idx) {
-    speechSynthesis.cancel();
+    SS?.cancel();
     _paused = false;
     _cur = idx;
     _clearHL();
@@ -900,13 +913,13 @@ const Reader = (() => {
     _rate = parseFloat(v);
     const disp = parseFloat(v).toFixed(1).replace(/\.0$/, '');
     document.getElementById('speed-val').textContent = '×' + disp;
-    if (_playing) { const c = _cur; speechSynthesis.cancel(); setTimeout(() => _play(c), 50); }
+    if (_playing) { const c = _cur; SS?.cancel(); setTimeout(() => _play(c), 50); }
   }
 
   function setVoice(val) {
     if (!val) { _voice = null; return; }
     const opt = document.querySelector(`#voice-sel option[value="${val}"]`);
-    if (opt) _voice = speechSynthesis.getVoices()[parseInt(opt.dataset.vi)];
+    if (opt) _voice = SS?.getVoices()[parseInt(opt.dataset.vi)];
   }
 
   function _end() {
@@ -986,8 +999,17 @@ const Reader = (() => {
 //  VOICES
 // ════════════════════════════════════════════
 function loadVoices() {
+  if (!SS) {
+    // TTS non disponible : masquer les contrôles audio
+    document.getElementById('voice-sel').style.display = 'none';
+    document.getElementById('btn-play').title = 'Synthèse vocale non disponible dans ce navigateur';
+    document.getElementById('btn-play').disabled = true;
+    return;
+  }
+
   function populate() {
-    const all = speechSynthesis.getVoices();
+    const all = SS.getVoices();
+    if (!all.length) return;
     const langCode = document.getElementById('lang-sel').value;
     const map = { fra: 'fr', nld: 'nl', eng: 'en', deu: 'de' };
     const prefix = map[langCode] || 'fr';
@@ -1006,8 +1028,8 @@ function loadVoices() {
     });
   }
 
-  if (speechSynthesis.getVoices().length) populate();
-  speechSynthesis.onvoiceschanged = populate;
+  if (SS.getVoices().length) populate();
+  SS.onvoiceschanged = populate;
 }
 
 // ════════════════════════════════════════════
@@ -1043,7 +1065,7 @@ function setOverlay(color) {
 //  MISC
 // ════════════════════════════════════════════
 // Stop TTS when navigating away
-window.addEventListener('beforeunload', () => speechSynthesis.cancel());
+window.addEventListener('beforeunload', () => SS?.cancel());
 
 // Prevent zoom on double-tap (tablet UX)
 let _lastTap = 0;
