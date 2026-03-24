@@ -95,10 +95,11 @@ body{font-family:var(--ff);color:var(--tx);background:var(--bg3);
   overflow:hidden;min-height:0}
 #cam-video{width:100%;height:100%;object-fit:cover;display:block}
 .cam-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:88%;aspect-ratio:1.414;border:2.5px solid rgba(255,255,255,.7);border-radius:6px;
-  box-shadow:0 0 0 9999px rgba(0,0,0,.38);pointer-events:none}
-.cam-guide-label{position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);
-  color:rgba(255,255,255,.8);font-size:12px;white-space:nowrap}
+  width:82%;aspect-ratio:1/1.414;border:2.5px solid rgba(255,255,255,.7);border-radius:6px;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.38);pointer-events:none;max-height:90%}
+.cam-guide-label{position:absolute;bottom:-26px;left:50%;transform:translateX(-50%);
+  color:rgba(255,255,255,.85);font-size:12px;white-space:nowrap;
+  background:rgba(0,0,0,.4);padding:2px 8px;border-radius:10px}
 .cam-actions{display:flex;align-items:center;justify-content:center;gap:20px;flex-shrink:0;
   padding-bottom:4px}
 
@@ -249,8 +250,9 @@ body{font-family:var(--ff);color:var(--tx);background:var(--bg3);
   .home-icon{font-size:96px}
   .home-title{font-size:36px}
 }
+/* En mode paysage : le document A4 est probablement orienté paysage */
 @media(max-height:600px) and (orientation:landscape){
-  .cam-guide{width:60%;aspect-ratio:2}
+  .cam-guide{width:55%;aspect-ratio:1.414}
 }
 </style>
 </head>
