@@ -686,28 +686,20 @@ function buildReading(data) {
   // — Niveau 1 : paragraphes Tesseract (idéal)
   let paras = (data.paragraphs || []).filter(p => p.text && p.text.trim().length > 10);
 
-  // — Niveau 2 : si < 2 paragraphes détectés, découper le texte brut sur les doubles sauts de ligne
-  if (paras.length < 2 && data.text && data.text.trim().length > 10) {
+  // Fallback uniquement si Tesseract n'a trouvé AUCUN paragraphe (pas 1, pas 2 : zéro)
+  if (paras.length === 0 && data.text && data.text.trim().length > 10) {
+    // Niveau 2 : découper sur les doubles sauts de ligne
     const chunks = data.text
-      .split(/\n{2,}/)                        // double (ou plus) saut de ligne
-      .map(t => t.replace(/\n/g, ' ').trim()) // sauts simples → espace
-      .filter(t => t.length > 10);
+      .split(/\n{2,}/)
+      .map(t => t.replace(/\n/g, ' ').trim())
+      .filter(t => /[a-zA-ZÀ-ÿ0-9]/.test(t) && t.length > 10);
 
-    if (chunks.length >= 2) {
-      // pseudo-paras sans bbox → pas de détection de colonnes
+    if (chunks.length >= 1) {
       paras = chunks.map(text => ({ text, bbox: null }));
     } else {
-      // — Niveau 3 : grouper les lignes par paquets de 4
-      const lines = (data.lines || [])
-        .map(l => l.text.trim())
-        .filter(t => t.length > 2);
-      if (lines.length >= 2) {
-        const size = Math.max(3, Math.round(lines.length / Math.ceil(lines.length / 4)));
-        const groups = [];
-        for (let i = 0; i < lines.length; i += size)
-          groups.push(lines.slice(i, i + size).join(' '));
-        paras = groups.map(text => ({ text, bbox: null }));
-      }
+      // Niveau 3 : tout le texte en un seul bloc
+      const full = data.text.replace(/\n/g, ' ').trim();
+      if (full.length > 10) paras = [{ text: full, bbox: null }];
     }
   }
 
@@ -911,32 +903,46 @@ const Reader = (() => {
     _scroll(idx);
     _updateUI();
 
-    // Si TTS indisponible : avancer bloc par bloc visuellement sans audio
     if (!SS) {
-      setTimeout(() => { if (_playing) _play(idx + 1); }, 1800);
+      setTimeout(() => { if (_playing) _play(idx + 1); }, 2000);
       return;
     }
 
-    const text = _blocks[idx].text;
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = _rate;
-    utt.lang = _langCode();
-    if (_voice) utt.voice = _voice;
-    _utt = utt;
+    // Cancel d'abord, puis créer l'utterance dans le setTimeout
+    // (évite que le nouvel utterance soit annulé sur Android Chrome)
+    SS.cancel();
+    setTimeout(() => {
+      if (!_playing) return; // l'utilisateur a peut-être pausé entre-temps
 
-    utt.onboundary = e => {
-      if (e.name === 'word') _hlWord(idx, e.charIndex);
-    };
-    utt.onend = () => {
-      if (_playing && !_paused) _play(idx + 1);
-    };
-    utt.onerror = e => {
-      if (e.error !== 'interrupted' && e.error !== 'canceled') console.warn('TTS:', e.error);
-    };
+      const text = _blocks[idx].text;
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.rate = _rate;
 
-    SS?.cancel();
-    // Small delay to avoid Chrome TTS bug
-    setTimeout(() => { if (_playing) SS?.speak(utt); }, 80);
+      // Ne forcer lang/voice que si des voix sont disponibles
+      const voices = SS.getVoices();
+      if (_voice) {
+        utt.voice = _voice;
+      } else if (voices.length > 0) {
+        // Chercher une voix pour la langue choisie, sinon prendre la première disponible
+        const prefix = _langCode().split('-')[0];
+        const match = voices.find(v => v.lang.startsWith(prefix)) || voices[0];
+        utt.voice = match;
+        utt.lang  = match.lang;
+      }
+      // Si aucune voix : pas de lang forcée → le navigateur utilise sa voix par défaut
+
+      _utt = utt;
+      utt.onboundary = e => { if (e.name === 'word') _hlWord(idx, e.charIndex); };
+      utt.onend = () => { if (_playing && !_paused) _play(idx + 1); };
+      utt.onerror = e => {
+        console.warn('TTS error:', e.error, '|', text.substring(0, 40));
+        // En cas d'erreur inattendue : passer au bloc suivant plutôt que bloquer
+        if (e.error !== 'interrupted' && e.error !== 'canceled' && _playing)
+          setTimeout(() => { if (_playing) _play(idx + 1); }, 200);
+      };
+
+      SS.speak(utt);
+    }, 150);
   }
 
   function _pause() {
@@ -1087,9 +1093,8 @@ function loadVoices() {
     return;
   }
 
-  function populate() {
-    const all = SS.getVoices();
-    if (!all.length) return;
+  function populate(all) {
+    if (!all || !all.length) return;
     const langCode = document.getElementById('lang-sel').value;
     const map = { fra: 'fr', nld: 'nl', eng: 'en', deu: 'de' };
     const prefix = map[langCode] || 'fr';
@@ -1108,8 +1113,14 @@ function loadVoices() {
     });
   }
 
-  if (SS.getVoices().length) populate();
-  SS.onvoiceschanged = populate;
+  // onvoiceschanged ne se déclenche pas sur tous les Android Chrome → polling de secours
+  SS.onvoiceschanged = () => populate(SS.getVoices());
+  let _attempts = 0;
+  (function tryLoad() {
+    const v = SS.getVoices();
+    if (v.length > 0) populate(v);
+    else if (_attempts++ < 20) setTimeout(tryLoad, 300);
+  })();
 }
 
 // ════════════════════════════════════════════
