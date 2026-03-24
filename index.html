@@ -785,8 +785,8 @@ function renderBlocks({ segs, cols }) {
 
     // Nettoyer le texte pour l'affichage ET la lecture TTS
     const readText = cleanOCR(seg.text);
-    // Ignorer les blocs sans contenu lisible (artefacts purs)
-    if (readText.replace(/\s/g, '').length < 4) return;
+    // Ignorer uniquement les blocs sans aucune lettre ou chiffre
+    if (!/[a-zA-ZÀ-ÿ0-9]/.test(readText)) return;
 
     const wrap = document.createElement('div');
     wrap.className = 'block read-settings';
@@ -842,10 +842,9 @@ function renderBlocks({ segs, cols }) {
 // - normalise les espaces
 function cleanOCR(text) {
   return text
-    .replace(/[|_+]{1,}/g, ' ')       // séparateurs de tableaux → espace
-    .replace(/\b[^a-zA-ZÀ-ÿ0-9€%\u2019\u2018'"()\-.,;:!?]\b/g, ' ') // caractères isolés
-    .replace(/[ \t]{2,}/g, ' ')        // espaces multiples
-    .replace(/(\s*\n\s*){2,}/g, '\n')  // sauts de ligne multiples
+    .replace(/\|/g, ' ')               // séparateurs de tableau → espace
+    .replace(/[ \t]{2,}/g, ' ')        // espaces multiples → un seul
+    .replace(/(\s*\n\s*){3,}/g, '\n\n')// 3+ sauts de ligne → 2 max
     .trim();
 }
 
