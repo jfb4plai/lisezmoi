@@ -269,6 +269,9 @@ body{font-family:var(--ff);color:var(--tx);background:var(--bg3);
     <div class="home-icon">👁️</div>
     <div class="home-title">LisezMoi</div>
     <div class="home-sub">Pointez la caméra vers n'importe quel texte imprimé — l'app le lit à voix haute, bloc par bloc, avec respect des colonnes.</div>
+    <div id="cam-err-msg" style="display:none;background:var(--rl);color:var(--re);
+      border:.5px solid var(--re);border-radius:var(--rm);padding:12px 14px;font-size:13px;
+      line-height:1.5;text-align:left;width:100%;max-width:360px;margin-bottom:12px"></div>
     <div class="home-btns">
       <button class="btn btn-g btn-xl" onclick="startCamera()">📷 &nbsp;Prendre une photo</button>
       <button class="btn btn-xl" onclick="pickFile()">📁 &nbsp;Charger une image</button>
@@ -472,22 +475,69 @@ function showView(id) {
 //  CAMERA
 // ════════════════════════════════════════════
 async function startCamera() {
+  const msg = document.getElementById('cam-err-msg');
+  if (msg) msg.style.display = 'none';
+  // Vérifier que l'API est disponible (HTTPS requis)
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (msg) {
+      msg.style.display = 'flex';
+      msg.textContent = '⚠️ Caméra non disponible. Assurez-vous d\'utiliser l\'app via HTTPS (pas en fichier local).';
+    }
+    return;
+  }
   showView('camera');
   await initCam();
 }
 
 async function initCam() {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
-  try {
-    camStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode, width: { ideal: 2560 }, height: { ideal: 1920 } }
-    });
-    document.getElementById('cam-video').srcObject = camStream;
-  } catch {
-    stopCam();
-    showView('home');
-    pickFile();
+
+  // Cascade de contraintes : haute résolution → standard → caméra seule
+  const constraints = [
+    { facingMode, width: { ideal: 1920 }, height: { ideal: 1440 } },
+    { facingMode, width: { ideal: 1280 }, height: { ideal: 960 } },
+    { facingMode },
+    true   // n'importe quelle caméra
+  ];
+
+  for (const c of constraints) {
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({ video: c });
+      const video = document.getElementById('cam-video');
+      video.srcObject = camStream;
+      // Android exige un appel explicite à play()
+      await video.play().catch(() => {});
+      return;   // succès
+    } catch (err) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        // Permission refusée : inutile de réessayer avec d'autres contraintes
+        _camPermError();
+        return;
+      }
+      // Autre erreur : on essaie la contrainte suivante
+    }
   }
+
+  // Toutes les tentatives ont échoué → galerie
+  _camFallback();
+}
+
+function _camPermError() {
+  stopCam();
+  showView('home');
+  const msg = document.getElementById('cam-err-msg');
+  if (msg) {
+    msg.style.display = 'flex';
+    msg.textContent = '🔒 Accès caméra refusé. Autorisez la caméra dans les réglages du navigateur, puis rechargez la page.';
+  } else {
+    alert('🔒 Accès caméra refusé.\n\nDans Chrome Android :\nRéglages → Confidentialité → Paramètres de site → Caméra → Autoriser\npuis rechargez la page.');
+  }
+}
+
+function _camFallback() {
+  stopCam();
+  showView('home');
+  pickFile();
 }
 
 async function flipCam() {
