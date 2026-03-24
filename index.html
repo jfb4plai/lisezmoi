@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LisezMoi — Lecture accessible</title>
+<script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --a:#EF9F27;--al:#FAEEDA;--am:#FAC775;
+  --t:#1D9E75;--tl:#E1F5EE;--tdk:#1a8b66;
+  --re:#E24B4A;--rl:#FCEBEB;
+  --pu:#7F77DD;--pul:#EEEDFE;
+  --bg:#fff;--bg2:#f7f6f3;--bg3:#f0efe8;
+  --tx:#1a1a1a;--tx2:#666;--tx3:#999;
+  --bd:rgba(0,0,0,.12);--bd2:rgba(0,0,0,.22);
+  --rr:12px;--rm:8px;
+  --ff:Arial,sans-serif;
+  --fs:12px;--lh:1.5;--ls:0em;--ws:normal;
+  --block-bg:var(--bg);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1a1a1a;--bg2:#242424;--bg3:#2c2c2c;
+  --tx:#f0f0f0;--tx2:#aaa;--tx3:#555;
+  --bd:rgba(255,255,255,.12);--bd2:rgba(255,255,255,.22)
+}}
+body.hi-contrast{
+  --bg:#000!important;--bg2:#111!important;--bg3:#000!important;
+  --tx:#fff!important;--tx2:#ccc!important;--tx3:#888!important;
+  --bd:rgba(255,255,255,.25)!important;--bd2:rgba(255,255,255,.4)!important;
+  --tl:#003322!important;--al:#332200!important;--am:#996600!important;
+  --block-bg:#000!important;
+}
+/* En mode contraste, s'assurer que le mot surligné reste lisible */
+body.hi-contrast .w.hi{background:#ffb300!important;color:#000!important}
+/* Arial est la police des épreuves certificatives FWB */
+body.dyslexic{--ff:Arial,sans-serif!important}
+
+body{font-family:var(--ff);color:var(--tx);background:var(--bg3);
+  min-height:100svh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+/* ── App shell ── */
+.app{max-width:640px;margin:0 auto;background:var(--bg);min-height:100svh;
+  display:flex;flex-direction:column;position:relative;overflow:hidden}
+.view{display:none;flex-direction:column;flex:1;overflow:hidden}
+.view.active{display:flex}
+
+/* ── Header ── */
+.hdr{padding:14px 18px;border-bottom:.5px solid var(--bd);
+  display:flex;align-items:center;gap:10px;background:var(--bg);flex-shrink:0}
+.logo{font-size:18px;font-weight:700;color:var(--tx);line-height:1}
+.logo span{color:var(--t)}
+.hdr-back{background:none;border:.5px solid var(--bd);border-radius:var(--rm);
+  padding:6px 14px;cursor:pointer;font-size:13px;color:var(--tx2);
+  font-family:var(--ff);transition:background .15s}
+.hdr-back:hover{background:var(--bg2)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.badge{font-size:11px;color:var(--tx3);letter-spacing:.02em}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:11px 18px;border-radius:var(--rm);font-size:15px;font-weight:500;
+  cursor:pointer;border:.5px solid var(--bd2);background:var(--bg);color:var(--tx);
+  font-family:var(--ff);transition:background .15s,transform .1s;
+  user-select:none;-webkit-tap-highlight-color:transparent;text-align:center}
+.btn:hover{background:var(--bg2)}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn-g{background:var(--t);color:#fff;border-color:var(--tdk)}
+.btn-g:hover{background:var(--tdk)}
+.btn-xl{padding:16px 22px;font-size:16px;border-radius:14px;width:100%;margin-top:10px}
+.btn-round{width:52px;height:52px;padding:0;border-radius:50%;font-size:20px;flex-shrink:0}
+.btn-round-lg{width:64px;height:64px;font-size:26px}
+
+/* ── Home ── */
+#view-home{padding:20px}
+.home-body{flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:10px 0 24px;text-align:center}
+.home-icon{font-size:80px;line-height:1;margin-bottom:18px}
+.home-title{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.home-sub{font-size:15px;color:var(--tx2);max-width:310px;line-height:1.55;margin-bottom:28px}
+.home-btns{width:100%;max-width:360px}
+.home-lang{margin-top:22px;display:flex;align-items:center;gap:8px;
+  font-size:13px;color:var(--tx2)}
+.home-lang select{font-size:13px;padding:5px 9px;border-radius:var(--rm);
+  border:.5px solid var(--bd2);background:var(--bg2);color:var(--tx);font-family:var(--ff);
+  cursor:pointer}
+
+/* ── Camera ── */
+#view-camera{padding:0}
+#view-camera .hdr{padding:12px 16px}
+.cam-body{flex:1;display:flex;flex-direction:column;padding:12px;gap:12px;overflow:hidden}
+.cam-viewport{flex:1;position:relative;background:#000;border-radius:var(--rr);
+  overflow:hidden;min-height:0}
+#cam-video{width:100%;height:100%;object-fit:cover;display:block}
+.cam-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:88%;aspect-ratio:1.414;border:2.5px solid rgba(255,255,255,.7);border-radius:6px;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.38);pointer-events:none}
+.cam-guide-label{position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);
+  color:rgba(255,255,255,.8);font-size:12px;white-space:nowrap}
+.cam-actions{display:flex;align-items:center;justify-content:center;gap:20px;flex-shrink:0;
+  padding-bottom:4px}
+
+/* ── Preview ── */
+#view-preview{padding:0}
+#view-preview .hdr{padding:12px 16px}
+.preview-body{flex:1;display:flex;flex-direction:column;padding:12px;gap:10px;overflow:hidden}
+.preview-img-wrap{flex:1;background:#000;border-radius:var(--rr);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;min-height:0}
+#preview-canvas{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.preview-tip{font-size:12px;color:var(--tx3);text-align:center;
+  background:var(--bg2);border-radius:var(--rm);padding:8px 12px;flex-shrink:0}
+.preview-actions{display:flex;flex-direction:column;gap:8px;flex-shrink:0;padding-bottom:4px}
+
+/* ── Processing ── */
+#view-processing{padding:20px;justify-content:center;align-items:center;gap:0}
+.proc-center{flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:22px}
+.proc-spinner{width:56px;height:56px;border:4px solid var(--bd);
+  border-top-color:var(--t);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.proc-label{font-size:15px;color:var(--tx);font-weight:500;text-align:center;max-width:260px}
+.proc-sub{font-size:13px;color:var(--tx3);text-align:center}
+.prog-wrap{width:100%;max-width:280px;height:6px;background:var(--bd);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;background:var(--t);border-radius:3px;transition:width .35s;width:0}
+
+/* ── Reading ── */
+#view-reading{padding:0}
+/* Barre de progression épaisse — repérage visuel fort */
+.read-progress-bar{height:8px;background:var(--bd);flex-shrink:0;position:relative}
+.read-progress-fill{height:100%;background:var(--t);transition:width .4s;width:0;border-radius:0 4px 4px 0}
+.read-pos-label{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  font-size:10px;font-weight:700;color:var(--tdk);letter-spacing:.03em}
+.read-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;
+  padding-bottom:8px;scroll-behavior:smooth;transition:background .2s}
+.read-settings{font-size:var(--fs);line-height:var(--lh);letter-spacing:var(--ls);
+  word-spacing:var(--ws)}
+
+/* Blocks */
+.block{margin-bottom:16px;border-radius:var(--rm);padding:14px 16px;
+  background:var(--block-bg);border:.5px solid var(--bd);cursor:pointer;
+  transition:background .15s,border-color .15s,box-shadow .15s}
+.block:hover{filter:brightness(.97)}
+.block.current{background:var(--al)!important;border-color:var(--am)!important;
+  box-shadow:0 0 0 2px var(--am)}
+.block.speaking{background:var(--tl)!important;border-color:#9FE1CB!important;
+  box-shadow:0 0 0 2px #9FE1CB}
+
+/* Label de bloc — repérage : numéro gros et visible */
+.block-lbl{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.block-num{display:inline-flex;align-items:center;justify-content:center;
+  min-width:26px;height:20px;padding:0 6px;background:var(--bg3);border:.5px solid var(--bd2);
+  border-radius:10px;font-size:11px;font-weight:700;color:var(--tx2);font-family:Arial,sans-serif}
+.block.current .block-num{background:var(--am);color:#5a3200;border-color:var(--am)}
+.block.speaking .block-num{background:var(--t);color:#fff;border-color:var(--tdk)}
+.block-lbl-txt{font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;
+  letter-spacing:.06em}
+.block-lbl-txt.col2{color:var(--pu)}
+.block-txt{color:var(--tx)}
+
+/* Mots */
+.w{border-radius:2px;transition:background .08s,color .08s}
+.w.hi{background:#e65c00;border-radius:3px;color:#fff!important;padding:0 1px}
+.w.past{color:var(--tx3)}
+
+/* Séparateur de colonnes */
+.col-sep{text-align:center;font-size:11px;color:var(--pu);font-weight:600;
+  display:flex;align-items:center;gap:10px;margin:0 0 16px;
+  background:var(--pul);border-radius:var(--rm);padding:7px 12px;
+  border:.5px solid rgba(127,119,221,.25)}
+.col-sep::before,.col-sep::after{content:'';flex:1;height:.5px;background:rgba(127,119,221,.3)}
+
+/* Pas de texte */
+.no-text{text-align:center;padding:48px 20px;color:var(--tx3)}
+.no-text-ico{font-size:52px;margin-bottom:14px}
+
+/* Dots mini-map — repérage de position dans le document */
+.blk-dots{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;
+  padding:8px 16px 4px;flex-shrink:0;background:var(--bg)}
+.blk-dot{width:10px;height:10px;border-radius:50%;background:var(--bd2);
+  cursor:pointer;transition:background .15s,transform .1s;flex-shrink:0;
+  border:.5px solid transparent}
+.blk-dot:hover{transform:scale(1.3)}
+.blk-dot.cur{background:var(--t);transform:scale(1.25);border-color:var(--tdk)}
+.blk-dot.done{background:var(--am)}
+
+/* Reading controls */
+.read-controls{flex-shrink:0;background:var(--bg);border-top:.5px solid var(--bd);
+  padding:10px 16px 14px}
+.ctrl-main{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:8px}
+.ctrl-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.speed-wrap{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tx2);flex:1}
+.speed-wrap input[type=range]{flex:1;max-width:80px;accent-color:var(--t)}
+/* Compteur prominent — repérage */
+.blk-ctr{font-size:13px;font-weight:700;color:var(--tx);min-width:52px;text-align:center;
+  white-space:nowrap;background:var(--bg2);border-radius:var(--rm);padding:3px 8px}
+.voice-sel{font-size:12px;padding:4px 7px;border:.5px solid var(--bd);
+  background:var(--bg2);color:var(--tx);border-radius:var(--rm);font-family:var(--ff);
+  max-width:120px;flex-shrink:0}
+.settings-btn{background:none;border:.5px solid var(--bd);border-radius:var(--rm);
+  padding:6px 11px;cursor:pointer;font-size:12px;color:var(--tx2);font-family:var(--ff);
+  transition:background .15s;white-space:nowrap}
+.settings-btn:hover{background:var(--bg2)}
+
+/* ── Settings panel ── */
+.s-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:30;
+  display:none;backdrop-filter:blur(2px)}
+.s-overlay.open{display:block}
+.s-panel{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);
+  width:100%;max-width:640px;background:var(--bg);border-radius:18px 18px 0 0;
+  padding:20px 20px 30px;z-index:31;transition:transform .28s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 -8px 32px rgba(0,0,0,.12)}
+.s-panel.open{transform:translateX(-50%) translateY(0)}
+.s-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.s-title{font-size:16px;font-weight:600}
+.s-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--tx2);
+  line-height:1;padding:4px}
+.s-row{display:flex;align-items:center;justify-content:space-between;
+  padding:13px 0;border-bottom:.5px solid var(--bd);gap:16px}
+.s-row:last-child{border:none;padding-bottom:0}
+.s-lbl{font-size:14px;color:var(--tx);flex:1}
+.s-lbl small{display:block;font-size:11px;color:var(--tx3);margin-top:2px}
+.s-ctrl{flex-shrink:0}
+/* Toggle */
+.tog{position:relative;width:42px;height:24px;flex-shrink:0}
+.tog input{opacity:0;position:absolute;width:0;height:0}
+.tog-sl{position:absolute;inset:0;background:var(--bd2);border-radius:24px;cursor:pointer;
+  transition:.25s}
+.tog-sl:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;
+  background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tog input:checked+.tog-sl{background:var(--t)}
+.tog input:checked+.tog-sl:before{transform:translateX(18px)}
+/* Color pills */
+.color-pills{display:flex;gap:7px;flex-wrap:wrap}
+.cpill{width:26px;height:26px;border-radius:50%;cursor:pointer;
+  border:2.5px solid transparent;transition:transform .15s,border-color .15s;flex-shrink:0}
+.cpill:hover{transform:scale(1.15)}
+.cpill.on{border-color:var(--tx)}
+.cpill-none{background:var(--bg2);border:.5px solid var(--bd2);
+  display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--tx3)}
+
+/* Overlay de lecture = teinte du fond des blocs uniquement (pas des contrôles) */
+/* géré via --block-bg en JS */
+
+/* ── Responsive ── */
+@media(min-width:540px){
+  .home-btns{max-width:380px}
+  .home-icon{font-size:96px}
+  .home-title{font-size:36px}
+}
+@media(max-height:600px) and (orientation:landscape){
+  .cam-guide{width:60%;aspect-ratio:2}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ HOME ══ -->
+<div id="view-home" class="view active">
+  <div class="hdr">
+    <img src="https://raw.githubusercontent.com/jfb4plai/Picto-lecture/main/public/nouveau_logo_plai_(1).jpg"
+      alt="Logo PLAI" style="height:36px;object-fit:contain;border-radius:4px">
+    <div class="logo" style="margin-left:4px">Lisez<span>Moi</span></div>
+    <div class="hdr-right"><span class="badge">FWB · v1.0</span></div>
+  </div>
+  <div class="home-body">
+    <div class="home-icon">👁️</div>
+    <div class="home-title">LisezMoi</div>
+    <div class="home-sub">Pointez la caméra vers n'importe quel texte imprimé — l'app le lit à voix haute, bloc par bloc, avec respect des colonnes.</div>
+    <div class="home-btns">
+      <button class="btn btn-g btn-xl" onclick="startCamera()">📷 &nbsp;Prendre une photo</button>
+      <button class="btn btn-xl" onclick="pickFile()">📁 &nbsp;Charger une image</button>
+    </div>
+    <div class="home-lang">
+      <label for="lang-sel">Langue :</label>
+      <select id="lang-sel">
+        <option value="fra">Français</option>
+        <option value="nld">Néerlandais</option>
+        <option value="eng">Anglais</option>
+        <option value="deu">Allemand</option>
+      </select>
+    </div>
+  </div>
+  <input type="file" id="file-in" accept="image/*" style="display:none" onchange="handleFile(this)">
+</div>
+
+<!-- ══ CAMERA ══ -->
+<div id="view-camera" class="view">
+  <div class="hdr">
+    <button class="hdr-back" onclick="stopCam();showView('home')">← Retour</button>
+    <div class="logo" style="margin-left:8px">Cadrez le document</div>
+    <div class="hdr-right">
+      <button class="btn" style="padding:6px 10px;font-size:13px" onclick="flipCam()">🔄</button>
+    </div>
+  </div>
+  <div class="cam-body">
+    <div class="cam-viewport">
+      <video id="cam-video" autoplay playsinline muted></video>
+      <div class="cam-guide">
+        <span class="cam-guide-label">Centrez le document dans ce cadre</span>
+      </div>
+    </div>
+    <div class="cam-actions">
+      <button class="btn btn-round" onclick="pickFileFromCam()" title="Depuis la galerie">🖼️</button>
+      <button class="btn btn-round btn-round-lg btn-g" onclick="capturePhoto()" title="Capturer">📸</button>
+      <button class="btn btn-round" onclick="stopCam();showView('home')" title="Annuler">✕</button>
+    </div>
+  </div>
+  <input type="file" id="file-cam" accept="image/*" style="display:none" onchange="handleFile(this)">
+</div>
+
+<!-- ══ PREVIEW ══ -->
+<div id="view-preview" class="view">
+  <div class="hdr">
+    <button class="hdr-back" onclick="showView('home')">← Retour</button>
+    <div class="logo" style="margin-left:8px">Aperçu</div>
+  </div>
+  <div class="preview-body">
+    <div class="preview-img-wrap">
+      <canvas id="preview-canvas"></canvas>
+    </div>
+    <div class="preview-tip">💡 Vérifiez que le texte est net, bien orienté et sans reflet</div>
+    <div class="preview-actions">
+      <button class="btn btn-g btn-xl" onclick="startOCR()">🔍 &nbsp;Analyser ce document</button>
+      <button class="btn btn-xl" onclick="showView('home')">Choisir une autre image</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PROCESSING ══ -->
+<div id="view-processing" class="view">
+  <div class="hdr">
+    <div class="logo">Lisez<span>Moi</span></div>
+  </div>
+  <div class="proc-center">
+    <div class="proc-spinner"></div>
+    <div class="proc-label" id="proc-label">Initialisation…</div>
+    <div class="prog-wrap"><div class="prog-fill" id="prog-fill"></div></div>
+    <div class="proc-sub" id="proc-sub">Chargement du moteur OCR</div>
+  </div>
+</div>
+
+<!-- ══ READING ══ -->
+<div id="view-reading" class="view">
+  <div class="hdr">
+    <button class="hdr-back" onclick="Reader.stop();showView('home')">← Nouveau</button>
+    <div class="logo" style="margin-left:8px">Lecture</div>
+    <div class="hdr-right">
+      <button class="settings-btn" onclick="openSettings()">⚙️ Réglages</button>
+    </div>
+  </div>
+  <div class="read-progress-bar">
+    <div class="read-progress-fill" id="rd-prog"></div>
+    <div class="read-pos-label" id="rd-pos-lbl"></div>
+  </div>
+  <div class="read-scroll" id="rd-scroll">
+    <!-- blocks injected here -->
+  </div>
+  <div class="blk-dots" id="blk-dots" style="display:none"></div>
+  <div class="read-controls">
+    <div class="ctrl-main">
+      <button class="btn btn-round" id="btn-prev" onclick="Reader.prev()" title="Bloc précédent" aria-label="Bloc précédent">⏮</button>
+      <button class="btn btn-round btn-round-lg btn-g" id="btn-play" onclick="Reader.toggle()" title="Lire / Pause" aria-label="Lire">▶</button>
+      <button class="btn btn-round" id="btn-next" onclick="Reader.next()" title="Bloc suivant" aria-label="Bloc suivant">⏭</button>
+    </div>
+    <div class="ctrl-meta">
+      <div class="speed-wrap">
+        <span>🐢</span>
+        <input type="range" id="speed-range" min="0.5" max="2.2" step="0.1" value="1"
+          oninput="Reader.setRate(this.value)">
+        <span>🐇</span>
+        <span id="speed-val" style="min-width:28px;font-size:12px">×1</span>
+      </div>
+      <div class="blk-ctr" id="blk-ctr">— / —</div>
+      <select class="voice-sel" id="voice-sel" onchange="Reader.setVoice(this.value)">
+        <option value="">🗣 Voix</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+</div><!-- .app -->
+
+<!-- ══ SETTINGS PANEL ══ -->
+<div class="s-overlay" id="s-overlay" onclick="closeSettings()"></div>
+<div class="s-panel" id="s-panel">
+  <div class="s-head">
+    <div class="s-title">⚙️ Réglages d'accessibilité</div>
+    <button class="s-close" onclick="closeSettings()">✕</button>
+  </div>
+
+  <div class="s-row">
+    <div class="s-lbl">Police Arial <small>Police des épreuves certificatives FWB</small></div>
+    <label class="tog s-ctrl">
+      <input type="checkbox" id="tog-dyslexic" onchange="toggleDyslexic(this.checked)">
+      <div class="tog-sl"></div>
+    </label>
+  </div>
+
+  <div class="s-row">
+    <div class="s-lbl">Fort contraste <small>Texte blanc sur fond noir</small></div>
+    <label class="tog s-ctrl">
+      <input type="checkbox" id="tog-contrast" onchange="toggleContrast(this.checked)">
+      <div class="tog-sl"></div>
+    </label>
+  </div>
+
+  <div class="s-row">
+    <div class="s-lbl">Taille du texte</div>
+    <div class="s-ctrl" style="display:flex;align-items:center;gap:7px">
+      <span style="font-size:12px;color:var(--tx3)">A</span>
+      <input type="range" id="fs-range" min="10" max="32" step="1" value="12"
+        style="width:100px;accent-color:var(--t)" oninput="setFS(this.value)">
+      <span style="font-size:18px;color:var(--tx3)">A</span>
+    </div>
+  </div>
+
+  <div class="s-row">
+    <div class="s-lbl">Interligne</div>
+    <div class="s-ctrl" style="display:flex;align-items:center;gap:7px">
+      <span style="font-size:13px;color:var(--tx3)">≡</span>
+      <input type="range" id="lh-range" min="1.2" max="2.8" step="0.1" value="1.5"
+        style="width:100px;accent-color:var(--t)" oninput="setLH(this.value)">
+      <span style="font-size:16px;color:var(--tx3);letter-spacing:.15em">≡</span>
+    </div>
+  </div>
+
+  <div class="s-row">
+    <div class="s-lbl">Espacement mots</div>
+    <div class="s-ctrl" style="display:flex;align-items:center;gap:7px">
+      <input type="range" id="ws-range" min="0" max="0.4" step="0.05" value="0"
+        style="width:100px;accent-color:var(--t)" oninput="setWS(this.value)">
+    </div>
+  </div>
+
+  <div class="s-row">
+    <div class="s-lbl">Fond coloré <small>Filtre de lecture pour dyslexiques</small></div>
+    <div class="color-pills s-ctrl" id="cpills">
+      <div class="cpill cpill-none on" onclick="setOverlay(null)" title="Aucun">✕</div>
+      <div class="cpill" style="background:#FEF9C3" onclick="setOverlay('#FEF9C3')" title="Jaune"></div>
+      <div class="cpill" style="background:#DCFCE7" onclick="setOverlay('#DCFCE7')" title="Vert"></div>
+      <div class="cpill" style="background:#DBEAFE" onclick="setOverlay('#DBEAFE')" title="Bleu"></div>
+      <div class="cpill" style="background:#FCE7F3" onclick="setOverlay('#FCE7F3')" title="Rose"></div>
+      <div class="cpill" style="background:#EDE9FE" onclick="setOverlay('#EDE9FE')" title="Mauve"></div>
+      <div class="cpill" style="background:#FEE2E2" onclick="setOverlay('#FEE2E2')" title="Pêche"></div>
+    </div>
+  </div>
+</div>
+
+
+<canvas id="hidden-canvas" style="display:none"></canvas>
+
+<script>
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+let capturedDataUrl = null;
+let camStream = null;
+let facingMode = 'environment';
+
+// ════════════════════════════════════════════
+//  VIEW MANAGEMENT
+// ════════════════════════════════════════════
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+}
+
+// ════════════════════════════════════════════
+//  CAMERA
+// ════════════════════════════════════════════
+async function startCamera() {
+  showView('camera');
+  await initCam();
+}
+
+async function initCam() {
+  if (camStream) camStream.getTracks().forEach(t => t.stop());
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 2560 }, height: { ideal: 1920 } }
+    });
+    document.getElementById('cam-video').srcObject = camStream;
+  } catch {
+    stopCam();
+    showView('home');
+    pickFile();
+  }
+}
+
+async function flipCam() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  await initCam();
+}
+
+function stopCam() {
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  const v = document.getElementById('cam-video');
+  v.srcObject = null;
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cam-video');
+  const c = document.getElementById('hidden-canvas');
+  c.width = video.videoWidth || 1280;
+  c.height = video.videoHeight || 960;
+  c.getContext('2d').drawImage(video, 0, 0);
+  capturedDataUrl = c.toDataURL('image/jpeg', 0.95);
+  stopCam();
+  displayPreview(capturedDataUrl);
+}
+
+function pickFile() { document.getElementById('file-in').click(); }
+function pickFileFromCam() { document.getElementById('file-cam').click(); }
+
+function handleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    capturedDataUrl = e.target.result;
+    stopCam();
+    displayPreview(capturedDataUrl);
+  };
+  r.readAsDataURL(file);
+  input.value = '';
+}
+
+function displayPreview(dataUrl) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.getElementById('preview-canvas');
+    c.width = img.width;
+    c.height = img.height;
+    c.getContext('2d').drawImage(img, 0, 0);
+  };
+  img.src = dataUrl;
+  showView('preview');
+}
+
+// ════════════════════════════════════════════
+//  OCR
+// ════════════════════════════════════════════
+async function startOCR() {
+  showView('processing');
+  const lang = document.getElementById('lang-sel').value;
+  setProgress(0, 'Chargement du moteur OCR…', '');
+
+  try {
+    const { data } = await Tesseract.recognize(capturedDataUrl, lang, {
+      logger: onOCRProgress
+    });
+    buildReading(data);
+  } catch (err) {
+    console.error(err);
+    alert('Erreur lors de l\'analyse : ' + (err.message || err));
+    showView('preview');
+  }
+}
+
+function onOCRProgress(m) {
+  const labels = {
+    'loading tesseract core': 'Chargement du moteur…',
+    'initializing tesseract': 'Initialisation…',
+    'loading language traineddata': 'Chargement du modèle de langue…',
+    'initializing api': 'Préparation…',
+    'recognizing text': 'Reconnaissance du texte…',
+  };
+  const label = labels[m.status] || m.status || '';
+  const pct = typeof m.progress === 'number' ? m.progress : 0;
+  const sub = m.status === 'recognizing text'
+    ? `${Math.round(pct * 100)} % analysé`
+    : '';
+  setProgress(pct, label, sub);
+}
+
+function setProgress(pct, label, sub) {
+  document.getElementById('prog-fill').style.width = (pct * 100) + '%';
+  if (label) document.getElementById('proc-label').textContent = label;
+  document.getElementById('proc-sub').textContent = sub;
+}
+
+// ════════════════════════════════════════════
+//  LAYOUT ANALYSIS (column detection)
+// ════════════════════════════════════════════
+function buildReading(data) {
+  const c = document.getElementById('preview-canvas');
+  const imgW = c.width || 1000;
+
+  // Collect paragraphs with text
+  const paras = (data.paragraphs || []).filter(p => p.text && p.text.trim().length > 3);
+
+  if (paras.length === 0) {
+    showNoText();
+    return;
+  }
+
+  const sorted = detectColumns(paras, imgW);
+  renderBlocks(sorted);
+  loadVoices();
+  showView('reading');
+}
+
+function detectColumns(paras, imgW) {
+  if (paras.length <= 2) return { segs: paras.map(p => ({ text: p.text.trim(), col: 0 })), cols: 1 };
+
+  // Compute average paragraph width ratio
+  const avgW = paras.reduce((s, p) => s + (p.bbox.x1 - p.bbox.x0), 0) / paras.length;
+  const ratio = avgW / imgW;
+
+  // If avg paragraph width < 55% of image → likely 2 columns
+  if (ratio < 0.55 && paras.length >= 4) {
+    // Find split point by largest gap in center-X distribution
+    const sorted = [...paras].sort((a, b) => cx(a) - cx(b));
+    let maxGap = 0, gapAt = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const g = cx(sorted[i]) - cx(sorted[i - 1]);
+      if (g > maxGap) { maxGap = g; gapAt = i; }
+    }
+    const splitX = (cx(sorted[gapAt]) + cx(sorted[gapAt - 1])) / 2;
+    const inMiddle = splitX > imgW * 0.25 && splitX < imgW * 0.75;
+
+    if (inMiddle && maxGap > imgW * 0.08) {
+      const col1 = paras.filter(p => cx(p) < splitX).sort((a, b) => a.bbox.y0 - b.bbox.y0);
+      const col2 = paras.filter(p => cx(p) >= splitX).sort((a, b) => a.bbox.y0 - b.bbox.y0);
+      const segs = [
+        ...col1.map(p => ({ text: p.text.trim(), col: 1 })),
+        { divider: true },
+        ...col2.map(p => ({ text: p.text.trim(), col: 2 }))
+      ];
+      return { segs, cols: 2 };
+    }
+  }
+
+  // Single column — sort by y
+  const segs = paras
+    .sort((a, b) => a.bbox.y0 - b.bbox.y0)
+    .map(p => ({ text: p.text.trim(), col: 0 }));
+  return { segs, cols: 1 };
+}
+
+function cx(p) { return (p.bbox.x0 + p.bbox.x1) / 2; }
+
+// ════════════════════════════════════════════
+//  RENDER BLOCKS
+// ════════════════════════════════════════════
+const blocks = [];  // { text, el }
+
+function renderBlocks({ segs, cols }) {
+  const scroll = document.getElementById('rd-scroll');
+  scroll.innerHTML = '';
+  blocks.length = 0;
+  let idx = 0;
+
+  segs.forEach(seg => {
+    if (seg.divider) {
+      const d = document.createElement('div');
+      d.className = 'col-sep';
+      d.textContent = '▸ Colonne droite';
+      scroll.appendChild(d);
+      return;
+    }
+    if (!seg.text) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'block read-settings';
+    wrap.id = 'blk-' + idx;
+    wrap.dataset.idx = idx;
+    wrap.onclick = () => { Reader.jumpTo(parseInt(wrap.dataset.idx)); };
+
+    const lbl = document.createElement('div');
+    lbl.className = 'block-lbl';
+    const numBadge = document.createElement('span');
+    numBadge.className = 'block-num';
+    numBadge.textContent = idx + 1;
+    const lblTxt = document.createElement('span');
+    lblTxt.className = 'block-lbl-txt' + (seg.col === 2 ? ' col2' : '');
+    lblTxt.textContent = cols === 2 && seg.col ? 'Colonne ' + seg.col : 'Paragraphe';
+    lbl.appendChild(numBadge);
+    lbl.appendChild(lblTxt);
+    wrap.appendChild(lbl);
+
+    const txt = document.createElement('div');
+    txt.className = 'block-txt';
+    txt.innerHTML = tokenize(seg.text);
+    wrap.appendChild(txt);
+
+    scroll.appendChild(wrap);
+    blocks.push({ text: seg.text, el: wrap });
+    idx++;
+  });
+
+  if (blocks.length === 0) { showNoText(); return; }
+  Reader.init(blocks);
+
+  // Dots mini-map (max 30 blocs pour éviter l'encombrement)
+  const dotsWrap = document.getElementById('blk-dots');
+  dotsWrap.innerHTML = '';
+  if (blocks.length <= 30) {
+    blocks.forEach((_, i) => {
+      const d = document.createElement('div');
+      d.className = 'blk-dot';
+      d.title = 'Bloc ' + (i + 1);
+      d.onclick = () => Reader.jumpTo(i);
+      dotsWrap.appendChild(d);
+    });
+    dotsWrap.style.display = 'flex';
+  } else {
+    dotsWrap.style.display = 'none';
+  }
+}
+
+function tokenize(text) {
+  let html = '', pos = 0;
+  for (const tok of text.split(/(\s+)/)) {
+    if (/\S/.test(tok)) {
+      html += `<span class="w" data-s="${pos}" data-e="${pos + tok.length}">${esc(tok)}</span>`;
+    } else {
+      html += tok;
+    }
+    pos += tok.length;
+  }
+  return html;
+}
+
+function esc(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function showNoText() {
+  showView('reading');
+  document.getElementById('rd-scroll').innerHTML = `
+    <div class="no-text">
+      <div class="no-text-ico">🔍</div>
+      <p style="font-size:16px;font-weight:500;margin-bottom:8px">Aucun texte détecté</p>
+      <p style="font-size:13px;line-height:1.6">Vérifiez que l'image est nette,<br>bien éclairée et non floue.</p>
+      <button class="btn" style="margin-top:22px" onclick="showView('home')">Réessayer</button>
+    </div>`;
+  Reader.init([]);
+}
+
+// ════════════════════════════════════════════
+//  TTS READER
+// ════════════════════════════════════════════
+const Reader = (() => {
+  let _blocks = [];
+  let _cur = 0;
+  let _playing = false;
+  let _paused = false;
+  let _rate = 1.0;
+  let _voice = null;
+  let _utt = null;
+
+  function init(b) {
+    _blocks = b; _cur = 0; _playing = false; _paused = false;
+    _clearHL();
+    _updateUI();
+  }
+
+  function toggle() {
+    if (_playing) _pause();
+    else if (_paused) _resume();
+    else _play(_cur);
+  }
+
+  function _play(idx) {
+    if (idx >= _blocks.length) { _end(); return; }
+    _cur = idx;
+    _playing = true;
+    _paused = false;
+    _hlBlock(idx, true);
+    _scroll(idx);
+    _updateUI();
+
+    const text = _blocks[idx].text;
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = _rate;
+    utt.lang = _langCode();
+    if (_voice) utt.voice = _voice;
+    _utt = utt;
+
+    utt.onboundary = e => {
+      if (e.name === 'word') _hlWord(idx, e.charIndex);
+    };
+    utt.onend = () => {
+      if (_playing && !_paused) _play(idx + 1);
+    };
+    utt.onerror = e => {
+      if (e.error !== 'interrupted' && e.error !== 'canceled') console.warn('TTS:', e.error);
+    };
+
+    speechSynthesis.cancel();
+    // Small delay to avoid Chrome TTS bug
+    setTimeout(() => { if (_playing) speechSynthesis.speak(utt); }, 80);
+  }
+
+  function _pause() {
+    speechSynthesis.pause();
+    _playing = false; _paused = true;
+    _hlBlock(_cur, false);
+    _updateUI();
+  }
+
+  function _resume() {
+    speechSynthesis.resume();
+    _playing = true; _paused = false;
+    _hlBlock(_cur, true);
+    _updateUI();
+  }
+
+  function stop() {
+    speechSynthesis.cancel();
+    _playing = false; _paused = false;
+    _clearHL();
+    _updateUI();
+  }
+
+  function next() {
+    speechSynthesis.cancel();
+    _paused = false;
+    if (_cur < _blocks.length - 1) _cur++;
+    _clearHL();
+    if (_playing) _play(_cur);
+    else { _hlBlock(_cur, false); _scroll(_cur); _updateUI(); }
+  }
+
+  function prev() {
+    speechSynthesis.cancel();
+    _paused = false;
+    if (_cur > 0) _cur--;
+    _clearHL();
+    if (_playing) _play(_cur);
+    else { _hlBlock(_cur, false); _scroll(_cur); _updateUI(); }
+  }
+
+  function jumpTo(idx) {
+    speechSynthesis.cancel();
+    _paused = false;
+    _cur = idx;
+    _clearHL();
+    if (_playing) _play(_cur);
+    else { _hlBlock(_cur, false); _scroll(_cur); _updateUI(); }
+  }
+
+  function setRate(v) {
+    _rate = parseFloat(v);
+    const disp = parseFloat(v).toFixed(1).replace(/\.0$/, '');
+    document.getElementById('speed-val').textContent = '×' + disp;
+    if (_playing) { const c = _cur; speechSynthesis.cancel(); setTimeout(() => _play(c), 50); }
+  }
+
+  function setVoice(val) {
+    if (!val) { _voice = null; return; }
+    const opt = document.querySelector(`#voice-sel option[value="${val}"]`);
+    if (opt) _voice = speechSynthesis.getVoices()[parseInt(opt.dataset.vi)];
+  }
+
+  function _end() {
+    _playing = false; _paused = false; _cur = 0;
+    _clearHL(); _updateUI();
+  }
+
+  function _hlBlock(idx, speaking) {
+    _blocks.forEach((b, i) => {
+      b.el.classList.toggle('current', i === idx);
+      b.el.classList.toggle('speaking', i === idx && speaking);
+    });
+    // Barre de progression
+    const pct = _blocks.length ? ((idx + 1) / _blocks.length * 100) : 0;
+    document.getElementById('rd-prog').style.width = pct + '%';
+    const posLbl = document.getElementById('rd-pos-lbl');
+    posLbl.textContent = _blocks.length ? `${idx + 1}/${_blocks.length}` : '';
+    // Compteur
+    const ctr = document.getElementById('blk-ctr');
+    ctr.textContent = _blocks.length ? `${idx + 1} / ${_blocks.length}` : '— / —';
+    // Dots mini-map
+    document.querySelectorAll('.blk-dot').forEach((d, i) => {
+      d.classList.toggle('cur', i === idx);
+      d.classList.toggle('done', i < idx);
+    });
+  }
+
+  function _hlWord(blockIdx, charIdx) {
+    const el = _blocks[blockIdx]?.el;
+    if (!el) return;
+    el.querySelectorAll('.w').forEach(w => {
+      const s = +w.dataset.s, e = +w.dataset.e;
+      if (charIdx >= s && charIdx < e) {
+        w.classList.add('hi');
+        w.classList.remove('past');
+      } else if (charIdx >= e) {
+        w.classList.add('past');
+        w.classList.remove('hi');
+      } else {
+        w.classList.remove('hi', 'past');
+      }
+    });
+  }
+
+  function _clearHL() {
+    _blocks.forEach(b => {
+      b.el.classList.remove('current', 'speaking');
+      b.el.querySelectorAll('.w').forEach(w => w.classList.remove('hi', 'past'));
+    });
+    document.getElementById('rd-prog').style.width = '0';
+    document.getElementById('rd-pos-lbl').textContent = '';
+    document.getElementById('blk-ctr').textContent = _blocks.length
+      ? `1 / ${_blocks.length}` : '— / —';
+    document.querySelectorAll('.blk-dot').forEach(d => d.classList.remove('cur', 'done'));
+  }
+
+  function _scroll(idx) {
+    const el = _blocks[idx]?.el;
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function _updateUI() {
+    document.getElementById('btn-play').textContent = _playing ? '⏸' : '▶';
+    document.getElementById('btn-prev').disabled = _cur === 0 && !_playing;
+    document.getElementById('btn-next').disabled = _cur >= _blocks.length - 1 && !_playing;
+  }
+
+  function _langCode() {
+    const m = { fra: 'fr-FR', nld: 'nl-NL', eng: 'en-US', deu: 'de-DE' };
+    return m[document.getElementById('lang-sel').value] || 'fr-FR';
+  }
+
+  return { init, toggle, stop, next, prev, jumpTo, setRate, setVoice };
+})();
+
+// ════════════════════════════════════════════
+//  VOICES
+// ════════════════════════════════════════════
+function loadVoices() {
+  function populate() {
+    const all = speechSynthesis.getVoices();
+    const langCode = document.getElementById('lang-sel').value;
+    const map = { fra: 'fr', nld: 'nl', eng: 'en', deu: 'de' };
+    const prefix = map[langCode] || 'fr';
+    const relevant = all.filter(v => v.lang.startsWith(prefix));
+    const list = relevant.length ? relevant : all;
+
+    const sel = document.getElementById('voice-sel');
+    sel.innerHTML = '<option value="">🗣 Voix auto</option>';
+    list.forEach((v, i) => {
+      const realIdx = all.indexOf(v);
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.dataset.vi = realIdx;
+      opt.textContent = v.name.replace(/Microsoft\s*/g, '').split(' (')[0];
+      sel.appendChild(opt);
+    });
+  }
+
+  if (speechSynthesis.getVoices().length) populate();
+  speechSynthesis.onvoiceschanged = populate;
+}
+
+// ════════════════════════════════════════════
+//  SETTINGS
+// ════════════════════════════════════════════
+function openSettings() {
+  document.getElementById('s-overlay').classList.add('open');
+  document.getElementById('s-panel').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('s-overlay').classList.remove('open');
+  document.getElementById('s-panel').classList.remove('open');
+}
+function toggleDyslexic(on) { document.body.classList.toggle('dyslexic', on); }
+function toggleContrast(on) { document.body.classList.toggle('hi-contrast', on); }
+function setFS(v) { document.documentElement.style.setProperty('--fs', v + 'px'); }
+function setLH(v) { document.documentElement.style.setProperty('--lh', v); }
+function setWS(v) {
+  document.documentElement.style.setProperty('--ws', v > 0 ? v + 'em' : 'normal');
+}
+
+function setOverlay(color) {
+  // Applique la teinte uniquement sur les blocs de texte (pas les contrôles)
+  // → préserve le contraste des éléments d'interface
+  document.documentElement.style.setProperty('--block-bg', color || 'var(--bg)');
+  document.querySelectorAll('.cpill').forEach(p => {
+    const bg = p.style.background;
+    p.classList.toggle('on', (!color && p.classList.contains('cpill-none')) || bg === color);
+  });
+}
+
+// ════════════════════════════════════════════
+//  MISC
+// ════════════════════════════════════════════
+// Stop TTS when navigating away
+window.addEventListener('beforeunload', () => speechSynthesis.cancel());
+
+// Prevent zoom on double-tap (tablet UX)
+let _lastTap = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - _lastTap < 300 && e.target.tagName !== 'INPUT') e.preventDefault();
+  _lastTap = now;
+}, { passive: false });
+</script>
+</body>
+</html>
