@@ -352,7 +352,9 @@ body{font-family:var(--ff);color:var(--tx);background:var(--bg3);
   <div class="hdr">
     <button class="hdr-back" onclick="Reader.stop();showView('home')">← Nouveau</button>
     <div class="logo" style="margin-left:8px">Lecture</div>
-    <div class="hdr-right">
+    <div class="hdr-right" style="gap:6px">
+      <button class="settings-btn" id="btn-tts-test" onclick="testTTS()"
+        title="Tester la synthèse vocale">🔊</button>
       <button class="settings-btn" onclick="openSettings()">⚙️ Réglages</button>
     </div>
   </div>
@@ -908,41 +910,28 @@ const Reader = (() => {
       return;
     }
 
-    // Cancel d'abord, puis créer l'utterance dans le setTimeout
-    // (évite que le nouvel utterance soit annulé sur Android Chrome)
-    SS.cancel();
-    setTimeout(() => {
-      if (!_playing) return; // l'utilisateur a peut-être pausé entre-temps
+    // ⚠️ Android Chrome exige que speak() soit dans le même tick que le geste utilisateur
+    // → PAS de setTimeout ici, appel synchrone immédiat
+    const text = _blocks[idx].text.trim();
+    if (!text) { _play(idx + 1); return; }
 
-      const text = _blocks[idx].text;
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = _rate;
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = _rate;
+    // Pas de lang forcée par défaut : évite le silence si fr-FR absent sur l'appareil
+    // L'utilisateur peut choisir une voix explicitement dans les réglages
+    if (_voice) { utt.voice = _voice; utt.lang = _voice.lang; }
 
-      // Ne forcer lang/voice que si des voix sont disponibles
-      const voices = SS.getVoices();
-      if (_voice) {
-        utt.voice = _voice;
-      } else if (voices.length > 0) {
-        // Chercher une voix pour la langue choisie, sinon prendre la première disponible
-        const prefix = _langCode().split('-')[0];
-        const match = voices.find(v => v.lang.startsWith(prefix)) || voices[0];
-        utt.voice = match;
-        utt.lang  = match.lang;
-      }
-      // Si aucune voix : pas de lang forcée → le navigateur utilise sa voix par défaut
+    _utt = utt;
+    utt.onboundary = e => { if (e.name === 'word') _hlWord(idx, e.charIndex); };
+    utt.onend = () => { if (_playing && !_paused) _play(idx + 1); };
+    utt.onerror = e => {
+      console.warn('TTS:', e.error, '»', text.substring(0, 40));
+      if (e.error !== 'interrupted' && e.error !== 'canceled' && _playing)
+        setTimeout(() => { if (_playing) _play(idx + 1); }, 300);
+    };
 
-      _utt = utt;
-      utt.onboundary = e => { if (e.name === 'word') _hlWord(idx, e.charIndex); };
-      utt.onend = () => { if (_playing && !_paused) _play(idx + 1); };
-      utt.onerror = e => {
-        console.warn('TTS error:', e.error, '|', text.substring(0, 40));
-        // En cas d'erreur inattendue : passer au bloc suivant plutôt que bloquer
-        if (e.error !== 'interrupted' && e.error !== 'canceled' && _playing)
-          setTimeout(() => { if (_playing) _play(idx + 1); }, 200);
-      };
-
-      SS.speak(utt);
-    }, 150);
+    SS.cancel();   // annule l'éventuel utterance précédent
+    SS.speak(utt); // parle — même tick que le clic utilisateur
   }
 
   function _pause() {
@@ -1126,6 +1115,22 @@ function loadVoices() {
 // ════════════════════════════════════════════
 //  SETTINGS
 // ════════════════════════════════════════════
+// Test TTS direct — diagnostic Android
+function testTTS() {
+  const btn = document.getElementById('btn-tts-test');
+  if (!window.speechSynthesis) {
+    btn.textContent = '❌'; btn.title = 'speechSynthesis absent';
+    alert('Synthèse vocale non disponible sur cet appareil/navigateur.');
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance('Test audio. La synthèse vocale fonctionne.');
+  utt.onstart = () => { btn.textContent = '🔊'; };
+  utt.onend   = () => { btn.textContent = '✅'; setTimeout(() => { btn.textContent = '🔊'; }, 2000); };
+  utt.onerror = e => { btn.textContent = '❌'; btn.title = 'Erreur : ' + e.error; alert('Erreur TTS : ' + e.error); };
+  window.speechSynthesis.speak(utt);
+}
+
 function openSettings() {
   document.getElementById('s-overlay').classList.add('open');
   document.getElementById('s-panel').classList.add('open');
